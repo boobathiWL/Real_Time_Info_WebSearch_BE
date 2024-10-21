@@ -137,9 +137,13 @@ const checkDBdataExist = async (url) => {
 
 const getSummaryData = async (data) => {
   try {
-    const url = data.metadata.url;
-    const content = data.pageContent.content;
-    const word_count = data.pageContent.word_count ?? 0;
+    const url = data?.url;
+    const content = data?.pageContent?.content
+      ? data?.pageContent?.content
+      : '';
+    const word_count = data?.pageContent?.word_count
+      ? data?.pageContent?.word_count
+      : 0;
     const dataExist = await checkDBdataExist(url);
     if (dataExist) {
       const usage = dataExist.summary.usage;
@@ -181,7 +185,6 @@ const getSummaryData = async (data) => {
     }
   } catch (error) {
     await sendErrorSlackMessage(`*Error - DB* \n URL : ${data.metadata.url}`);
-
     console.log(`Error - DB: ${error}`);
     return { error: 'error' };
   }
@@ -364,7 +367,7 @@ function cleanHTMLContent(html) {
 }
 
 // Function to fetch the full page content
-const fetchPageContent = async (url: string): Promise<any> => {
+const fetchPageContent = async (url): Promise<any> => {
   // Fetch the webpage content
   try {
     const dataExist = await checkDBdataExist(url);
@@ -499,49 +502,58 @@ const scrapeRedditPostAndComments = async (url) => {
 };
 
 const basicWebSearch = async (
-  query: string,
+  query: any,
   history: BaseMessage[],
   llm: BaseChatModel,
   embeddings: Embeddings,
+  type,
 ) => {
   try {
-    const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(
-      llm,
-      embeddings,
-    );
+    if (type == 'url') {
+      const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(
+        llm,
+        embeddings,
+      );
 
-    const stream = await basicWebSearchAnsweringChain.invoke({
-      chat_history: history,
-      query: query,
-    });
-    // Fetch full page content for each URL
-    if (stream?.docs?.length > 0) {
+      const stream = await basicWebSearchAnsweringChain.invoke({
+        chat_history: history,
+        query: query,
+      });
+      // Fetch full page content for each URL
+      if (stream?.docs?.length > 0) {
+        const limitedDocs = [];
+        let count = 0;
+        for (const doc of stream?.docs) {
+          if (!doc.metadata.url.includes('//twitter')) {
+            if (count < 5) {
+              limitedDocs.push(doc.metadata.url);
+              count += 1;
+            } else {
+              break;
+            }
+          }
+        }
+        const uniqueArray = [...new Set(limitedDocs)];
+        return { urls: uniqueArray };
+      }
+    } else {
+      const uniqueArray = query;
       const results = [];
       const output = [];
-      const limitedDocs = [];
-      let count = 0;
-      for (const doc of stream?.docs) {
-        if (count < 5) {
-          limitedDocs.push(doc);
-          count += 1;
-        } else {
-          break;
-        }
-      }
-      const uniqueArray = [...new Set(limitedDocs)];
+
       if (uniqueArray?.length > 0) {
         for (const data of uniqueArray) {
-          const url = data.metadata.url.split('.');
-          const pageContent = data.metadata.url.includes('//twitter')
+          const url = data;
+          const pageContent = url.includes('//twitter')
             ? { content: '' }
             : url.includes('reddit')
-              ? await scrapeRedditPostAndComments(data?.metadata?.url)
-              : await fetchPageContent(data?.metadata?.url); // Fetch content for each URL
+              ? await scrapeRedditPostAndComments(url)
+              : await fetchPageContent(url); // Fetch content for each URL
           pageContent?.content === 'DataExist in DB'
-            ? results.push({ ...data })
+            ? results.push({ url })
             : pageContent?.content
               ? results.push({
-                  ...data,
+                  url,
                   pageContent,
                 })
               : '';
@@ -557,7 +569,6 @@ const basicWebSearch = async (
       }
       return output;
     }
-    return [];
   } catch (err) {
     await sendErrorSlackMessage(`*Error - websearch * \n Title : ${query}`);
     console.log(`Error in websearch: ${err}`);
@@ -566,12 +577,13 @@ const basicWebSearch = async (
 };
 
 const handleWebSearch = async (
-  message: string,
+  message: any,
   history: BaseMessage[],
   llm: BaseChatModel,
   embeddings: Embeddings,
+  type: string,
 ) => {
-  const emitter = await basicWebSearch(message, history, llm, embeddings);
+  const emitter = await basicWebSearch(message, history, llm, embeddings, type);
   return emitter;
 };
 
