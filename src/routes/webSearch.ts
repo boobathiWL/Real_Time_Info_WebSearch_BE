@@ -59,36 +59,53 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const message = req.body.title.toString();
+    const message = req.body.title ? req.body.title.toString() : req.body.urls;
+    const type = req.body.type.toString();
     if (!message) {
       return res.status(400).json({
         message: 'Message field is required',
       });
     }
+    if (!type) {
+      return res.status(400).json({
+        message: 'Type field is required',
+      });
+    }
+    let historyContent = [];
 
-    const parsedWSMessage = {
-      type: 'message',
-      message: {
-        content: message,
-      },
-      focusMode: 'webSearch',
-      history: [['human', message]],
-    };
+    if (type == 'url') {
+      const parsedWSMessage = {
+        type: 'message',
+        message: {
+          content: message,
+        },
+        focusMode: 'webSearch',
+        history: [['human', message]],
+      };
 
-    const history: BaseMessage[] = parsedWSMessage.history.map((msg) => {
-      if (msg[0] === 'human') {
-        return new HumanMessage({
-          content: msg[1],
-        });
-      } else {
-        return new AIMessage({
-          content: msg[1],
-        });
-      }
-    });
+      const history: BaseMessage[] = parsedWSMessage.history.map((msg) => {
+        if (msg[0] === 'human') {
+          return new HumanMessage({
+            content: msg[1],
+          });
+        } else {
+          return new AIMessage({
+            content: msg[1],
+          });
+        }
+      });
+      historyContent = history;
+    }
+
     const handler = searchHandlers['webSearch'];
     if (handler) {
-      const emitter = await handler(message, history, llm, embeddings);
+      const emitter = await handler(
+        message,
+        historyContent,
+        llm,
+        embeddings,
+        type,
+      );
       return res.status(200).json({ data: emitter });
     }
 
