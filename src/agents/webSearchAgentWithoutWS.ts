@@ -378,7 +378,7 @@ const fetchPageContent = async (url): Promise<any> => {
     } else {
       // Launch Puppeteer
       const browser = await puppeteer.launch({
-        headless: 'new', // Opt into the new headless mode
+        headless: true, // Opt into the new headless mode
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
         timeout: 80000,
         // dumpio: true, // Ensure dumpio is not enabled
