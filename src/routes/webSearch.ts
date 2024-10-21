@@ -60,17 +60,19 @@ router.post('/', async (req, res) => {
     }
 
     const message = req.body.title ? req.body.title.toString() : req.body.urls;
-    const type = req.body.type.toString();
-    if (!message) {
-      return res.status(400).json({
-        message: 'Message field is required',
-      });
-    }
-    if (!type) {
+    if (!req.body.type) {
       return res.status(400).json({
         message: 'Type field is required',
       });
     }
+    const type = req.body.type.toString();
+
+    if (!message) {
+      return res.status(400).json({
+        message: `${type == 'url' ? 'Title' : 'URLS'} field is required`,
+      });
+    }
+
     let historyContent = [];
 
     if (type == 'url') {
