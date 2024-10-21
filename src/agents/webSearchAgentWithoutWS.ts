@@ -6,7 +6,6 @@ import { Document } from '@langchain/core/documents';
 import { searchSearxng } from '../lib/searxng';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { Embeddings } from '@langchain/core/embeddings';
-import logger from '../utils/logger';
 import LineOutputParser from '../lib/outputParsers/lineOutputParser';
 import { ChatOpenAI } from '@langchain/openai';
 import axios from 'axios';
