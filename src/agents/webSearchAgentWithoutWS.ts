@@ -92,7 +92,7 @@ const getSummaryFromClaude = async (prompt, url) => {
     );
     return response.data;
   } catch (error) {
-    await sendErrorSlackMessage(`*Error - AI Summary* \n URL : ${url}`);
+    // await sendErrorSlackMessage(`*Error - AI Summary* \n URL : ${url}`);
     console.log(`Error - AI Summary: ${error}`);
     return { error: 'error' };
   }
@@ -118,7 +118,7 @@ const getSummaryFromChatGpt = async (prompt, url) => {
     );
     return response.data;
   } catch (error) {
-    await sendErrorSlackMessage(`*Error - AI Summary* \n URL : ${url}`);
+    // await sendErrorSlackMessage(`*Error - AI Summary* \n URL : ${url}`);
 
     console.log(`Error - AI Summary: ${error}`);
     return { error: 'error' };
@@ -130,7 +130,7 @@ const checkDBdataExist = async (url) => {
     return dataExist ? dataExist : '';
   } catch (error) {
     console.log(`Error - DB: ${error}`);
-    await sendErrorSlackMessage(`*Error - DB* \n URL : ${url}`);
+    // await sendErrorSlackMessage(`*Error - DB* \n URL : ${url}`);
     return '';
   }
 };
@@ -184,7 +184,7 @@ const getSummaryData = async (data) => {
       };
     }
   } catch (error) {
-    await sendErrorSlackMessage(`*Error - DB* \n URL : ${data.metadata.url}`);
+    // await sendErrorSlackMessage(`*Error - DB* \n URL : ${data.metadata.url}`);
     console.log(`Error - DB: ${error}`);
     return { error: 'error' };
   }
@@ -405,9 +405,11 @@ const fetchPageContent = async (url): Promise<any> => {
       };
     }
   } catch (error) {
-    await sendErrorSlackMessage(
-      `*Error - Fetch page content * \n URL : ${url}`,
-    );
+    // await sendErrorSlackMessage(
+    //   `*Error - Fetch page content * \n URL : ${url}`,
+    // );
+    console.log({error});
+    
     return {
       content: '',
     };
@@ -493,9 +495,9 @@ const scrapeRedditPostAndComments = async (url) => {
       return mainContent; // Print the extracted text content
     }
   } catch (error) {
-    await sendErrorSlackMessage(
-      `*Error - Fetch page content * \n URL : ${url}`,
-    );
+    // await sendErrorSlackMessage(
+    //   `*Error - Fetch page content * \n URL : ${url}`,
+    // );
     console.log('Error:', error);
     return { content: '' };
   }
@@ -570,7 +572,7 @@ const basicWebSearch = async (
       return output;
     }
   } catch (err) {
-    await sendErrorSlackMessage(`*Error - websearch * \n Title : ${query}`);
+    // await sendErrorSlackMessage(`*Error - websearch * \n Title : ${query}`);
     console.log(`Error in websearch: ${err}`);
     return [{ err }];
   }
