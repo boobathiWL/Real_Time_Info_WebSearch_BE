@@ -4,10 +4,9 @@
   "license": "MIT",
   "author": "",
   "scripts": {
-    "start": "npm run db:push && node dist/app.js",
+    "start": "node dist/app.js",
     "build": "tsc",
     "dev": "nodemon src/app.ts",
-    "db:push": "drizzle-kit push sqlite",
     "format": "prettier . --check",
     "format:write": "prettier . --write"
   },
@@ -18,7 +17,6 @@
     "@types/html-to-text": "^9.0.4",
     "@types/pdf-parse": "^1.1.4",
     "@types/readable-stream": "^4.0.11",
-    "drizzle-kit": "^0.22.7",
     "nodemon": "^3.1.0",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
@@ -37,7 +35,6 @@
     "compute-dot": "^1.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.31.2",
     "express": "^4.19.2",
     "html-to-text": "^9.0.5",
     "langchain": "^0.1.30",
