@@ -11,18 +11,20 @@ import { ChatOpenAI } from '@langchain/openai';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import url_summary_schema from '../db/mongodb/summary';
+import { ZenRows } from 'zenrows';
 import {
   getClaudeApiKey,
   getOpenaiApiKey,
   getSlackBotKey,
   getSlackErrorChannel,
+  getZenrowsKey,
 } from '../config';
-import puppeteer from 'puppeteer';
 
 const OPENAI_API_KEY = getOpenaiApiKey();
 const CLAUDE_API_KEY = getClaudeApiKey();
 const SLACK_ERROR_CHANEEL_ID = getSlackErrorChannel();
 const SLACK_BOT_KEY = getSlackBotKey();
+const ZENROWS_KEY = getZenrowsKey();
 
 //Error Slack
 const sendErrorSlackMessage = async (error) => {
@@ -118,7 +120,7 @@ const getSummaryFromChatGpt = async (prompt, url) => {
     );
     return response.data;
   } catch (error) {
-    // await sendErrorSlackMessage(`*Error - AI Summary* \n URL : ${url}`);
+    await sendErrorSlackMessage(`*Error - AI Summary* \n URL : ${url}`);
 
     console.log(`Error - AI Summary: ${error}`);
     return { error: 'error' };
@@ -130,7 +132,7 @@ const checkDBdataExist = async (url) => {
     return dataExist ? dataExist : '';
   } catch (error) {
     console.log(`Error - DB: ${error}`);
-    // await sendErrorSlackMessage(`*Error - DB* \n URL : ${url}`);
+    await sendErrorSlackMessage(`*Error - DB* \n URL : ${url}`);
     return '';
   }
 };
@@ -184,7 +186,7 @@ const getSummaryData = async (data) => {
       };
     }
   } catch (error) {
-    // await sendErrorSlackMessage(`*Error - DB* \n URL : ${data.metadata.url}`);
+    await sendErrorSlackMessage(`*Error - DB* \n URL : ${data.metadata.url}`);
     console.log(`Error - DB: ${error}`);
     return { error: 'error' };
   }
@@ -272,7 +274,7 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
       const res = await searchSearxng(question, { language: 'en' });
       const documents = res.results.map((result) => {
         return new Document({
-          pageContent: result.content,
+          pageContent: result.content || '',
           metadata: {
             title: result.title,
             url: result.url,
@@ -309,7 +311,7 @@ function cleanHTMLContent(html) {
   $(
     '.testimonial, .like-share, .like_share, .related-blog, .related_blog, .related-news,.related_news, .share-buttons, .share_buttons, .share-section, .share_section, .related-articles, .related_articles, .related-posts, .related_posts, .newsletter-signup, .newsletter_signup, .social-media, .social_media',
   ).remove();
-  const headings = [];
+  const headings = [] as any;
   let promptContent = '';
   $('h2, h3, h4').each((index, element) => {
     const tag = element.name;
@@ -366,6 +368,23 @@ function cleanHTMLContent(html) {
   };
 }
 
+const zenrows = async (url) => {
+  const client = new ZenRows(ZENROWS_KEY);
+  try {
+    const request = await client.get(url, {
+      js_render: true,
+    });
+    const data = await request.text();
+    return data;
+  } catch (error) {
+    console.error(error.message);
+    if (error.response) {
+      console.error(error.response.data);
+    }
+    return '';
+  }
+};
+
 // Function to fetch the full page content
 const fetchPageContent = async (url): Promise<any> => {
   // Fetch the webpage content
@@ -376,132 +395,193 @@ const fetchPageContent = async (url): Promise<any> => {
         content: 'DataExist in DB',
       };
     } else {
-      // Launch Puppeteer
-      const browser = await puppeteer.launch({
-        headless: true, // Opt into the new headless mode
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
-        timeout: 80000,
-        // dumpio: true, // Ensure dumpio is not enabled
-      });
-      const page = await browser.newPage();
+      // // Launch Puppeteer
+      // const browser = await puppeteer.launch({
+      //   headless: true, // Opt into the new headless mode
+      //   args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+      //   timeout: 80000,
+      //   // dumpio: true, // Ensure dumpio is not enabled
+      // });
+      // const page = await browser.newPage();
 
-      // Set a realistic user agent to avoid potential blocking
-      await page.setUserAgent(
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36',
-      );
+      // // Set a realistic user agent to avoid potential blocking
+      // await page.setUserAgent(
+      //   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36"
+      // );
 
-      // Navigate to the Reddit post
-      await page.goto(url, { waitUntil: 'networkidle2' });
+      // // Navigate to the Reddit post
+      // await page.goto(url, { waitUntil: "networkidle2" });
 
-      const content = await page.content();
+      // const content = await page.content();
 
-      await browser.close();
+      // await browser.close();
 
-      const { promptContent } = cleanHTMLContent(content);
-      const word_count = await wordCount(promptContent);
-      return {
-        content: promptContent,
-        word_count,
-      };
+      const content = await zenrows(url);
+      if (content) {
+        const { promptContent } = cleanHTMLContent(content);
+        if (!promptContent.startsWith('Loading...')) {
+          const word_count = await wordCount(promptContent);
+          if (word_count > 100) {
+            return {
+              content: promptContent,
+              word_count,
+            };
+          } else {
+            return {
+              content: '',
+              word_count: 0,
+            };
+          }
+        }
+      }
     }
   } catch (error) {
-    // await sendErrorSlackMessage(
-    //   `*Error - Fetch page content * \n URL : ${url}`,
-    // );
-    console.log({error});
-    
+    await sendErrorSlackMessage(
+      `*Error - Fetch page content * \n URL : ${url}`,
+    );
+    console.log({ error });
+
     return {
       content: '',
     };
   }
 };
 
-const scrapeRedditPostAndComments = async (url) => {
-  try {
-    const dataExist = await checkDBdataExist(url);
+// const scrapeRedditPostAndComments = async (url) => {
+//   try {
+//     const dataExist = await checkDBdataExist(url);
 
-    if (dataExist) {
-      return {
-        content: 'DataExist in DB',
-      };
-    } else {
-      // Launch Puppeteer
-      const browser = await puppeteer.launch({
-        headless: true, // Use the new headless mode
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
-        timeout: 80000, // Increase timeout to 60 seconds
-        dumpio: true, // Print out all browser logs to the console
-      });
-      const page = await browser.newPage();
+//     if (dataExist) {
+//       return {
+//         content: "DataExist in DB",
+//       };
+//     } else {
+//       // Launch Puppeteer
+//       const browser = await puppeteer.launch({
+//         headless: true, // Use the new headless mode
+//         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+//         timeout: 80000, // Increase timeout to 60 seconds
+//         dumpio: true, // Print out all browser logs to the console
+//       });
+//       const page = await browser.newPage();
 
-      // Set a realistic user agent to avoid potential blocking
-      await page.setUserAgent(
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36',
-      );
+//       // Set a realistic user agent to avoid potential blocking
+//       await page.setUserAgent(
+//         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36"
+//       );
 
-      // Navigate to the Reddit post
-      await page.goto(url, { waitUntil: 'networkidle2' });
+//       // Navigate to the Reddit post
+//       await page.goto(url, { waitUntil: "networkidle2" });
 
-      // Wait for the <main> tag to load
-      await page.waitForSelector('main');
-      // Extract the text content from the <main> tag
-      const mainContent = await page.evaluate(async () => {
-        const wordCount = async (content) => {
-          const count = content.toString().replace(/\s+/g, ' ').split(' ');
-          return count.length;
-        };
-        const title = document.querySelector('h1');
-        if (title.innerText === '[deleted by user]') {
-          return { content: '' };
-        } else {
-          const post = document.querySelector(
-            'div.text-neutral-content',
-          ) as HTMLElement;
-          if (post.innerText.length < 100) {
-            return { content: '' };
-          }
-          let Comment = '';
-          // Use querySelectorAll to select all elements with the class 'shreddit-comment'
-          const comments = document.querySelectorAll('shreddit-comment');
+//       // Wait for the <main> tag to load
+//       await page.waitForSelector("main");
+//       // Extract the text content from the <main> tag
+//       const mainContent = await page.evaluate(async () => {
+//         const wordCount = async (content) => {
+//           const count = content.toString().replace(/\s+/g, " ").split(" ");
+//           return count.length;
+//         };
+//         const title = document.querySelector("h1");
+//         if (title?.innerText === "[deleted by user]") {
+//           return { content: "" };
+//         } else {
+//           const post = document.querySelector(
+//             "div.text-neutral-content"
+//           ) as HTMLElement;
+//           if (post.innerText.length < 100) {
+//             return { content: "" };
+//           }
+//           let Comment = "";
+//           // Use querySelectorAll to select all elements with the class 'shreddit-comment'
+//           const comments = document.querySelectorAll("shreddit-comment");
 
-          // Iterate through the NodeList and log the inner text of each comment
-          comments.forEach((comment, i) => {
-            const element = comment as HTMLElement; // Cast to HTMLElement
-            Comment =
-              Comment +
-              `Comment${i + 1} \n ${element.innerText.replace(/\w+\n•\n\d+mo ago\n/g, '').trim()} \n`;
-          });
-          if (Comment.length < 100) {
-            return { content: '' };
-          }
-          const titleReddit = title.innerText.trim();
-          const postReddit = post.innerText
-            .replace(/\w+\n•\n\d+mo ago\n/g, '')
-            .replace(/\b[Rr]eply\b/g, '')
-            .trim();
-          const commentReddit = Comment.replace(/\b[Rr]eply\b/g, '');
-          let word_count = 0;
-          word_count = word_count + (await wordCount(titleReddit));
-          word_count = word_count + (await wordCount(postReddit));
-          word_count = word_count + (await wordCount(commentReddit));
-          return {
-            content: `RedditPostTitle : ${titleReddit} \n\n RedditPost : ${postReddit} \n\n RedditComments : ${commentReddit}`,
-            word_count,
-          };
-        }
-      });
+//           // Iterate through the NodeList and log the inner text of each comment
+//           comments.forEach((comment, i) => {
+//             const element = comment as HTMLElement; // Cast to HTMLElement
+//             Comment =
+//               Comment +
+//               `Comment${i + 1} \n ${element.innerText.replace(/\w+\n•\n\d+mo ago\n/g, "").trim()} \n`;
+//           });
+//           if (Comment.length < 100) {
+//             return { content: "" };
+//           }
+//           const titleReddit = title?.innerText.trim();
+//           const postReddit = post.innerText
+//             .replace(/\w+\n•\n\d+mo ago\n/g, "")
+//             .replace(/\b[Rr]eply\b/g, "")
+//             .trim();
+//           const commentReddit = Comment.replace(/\b[Rr]eply\b/g, "");
+//           let word_count = 0;
+//           word_count = word_count + (await wordCount(titleReddit));
+//           word_count = word_count + (await wordCount(postReddit));
+//           word_count = word_count + (await wordCount(commentReddit));
+//           return {
+//             content: `RedditPostTitle : ${titleReddit} \n\n RedditPost : ${postReddit} \n\n RedditComments : ${commentReddit}`,
+//             word_count,
+//           };
+//         }
+//       });
 
-      await browser.close();
-      return mainContent; // Print the extracted text content
-    }
-  } catch (error) {
-    // await sendErrorSlackMessage(
-    //   `*Error - Fetch page content * \n URL : ${url}`,
-    // );
-    console.log('Error:', error);
-    return { content: '' };
-  }
-};
+//       await browser.close();
+//       return mainContent;
+//       //  const content=await zenrows(url)
+
+//       // Load the HTML into cheerio for parsing
+//       //   const $ = cheerio.load(response.data);
+
+//       //   // Extract the title
+//       //   const title = $("h1").text().trim();
+
+//       //   // Check if the title is '[deleted by user]'
+//       //   if (title === "[deleted by user]") {
+//       //     console.log({ content: "" });
+//       //     return;
+//       //   }
+
+//       //   // Extract the post content
+//       //   const post = $("div.text-neutral-content").text().trim();
+
+//       //   if (post.length < 100) {
+//       //     console.log({ content: "" });
+//       //     return;
+//       //   }
+
+//       //   // Extract comments
+//       //   let Comment = "";
+//       //   $("shreddit-comment").each(function (i, comment) {
+//       //     const commentText = $(comment)
+//       //       .text()
+//       //       .replace(/\w+\n•\n\d+mo ago\n/g, "")
+//       //       .trim();
+//       //     Comment += `Comment${i + 1} \n ${commentText} \n`;
+//       //   });
+
+//       //   if (Comment.length < 100) {
+//       //     console.log({ content: "" });
+//       //     return;
+//       //   }
+
+//       //   // Count words in the post and comments
+//       //   const wordCount = (content) =>
+//       //     content.split(/\s+/).filter(Boolean).length;
+
+//       //   const word_count =
+//       //     wordCount(title) + wordCount(post) + wordCount(Comment);
+
+//       //   return {
+//       //     content: `RedditPostTitle : ${title} \n\n RedditPost : ${post} \n\n RedditComments : ${Comment}`,
+//       //     word_count,
+//       //   };
+//       // }
+//     }
+//   } catch (error) {
+//     // await sendErrorSlackMessage(
+//     //   `*Error - Fetch page content * \n URL : ${url}`,
+//     // );
+//     console.log("Error:", error);
+//     return { content: "" };
+//   }
+// };
 
 const basicWebSearch = async (
   query: any,
@@ -523,13 +603,14 @@ const basicWebSearch = async (
       });
       // Fetch full page content for each URL
       if (stream?.docs?.length > 0) {
-        const limitedDocs = [];
+        const limitedDocs = [] as any;
         let count = 0;
         for (const doc of stream?.docs) {
-          if (!doc.metadata.url.includes('//twitter')) {
-            if (count < 5) {
+          const url = doc.metadata.url;
+          if (!/\/\/twitter|youtube|reddit/.test(url)) {
+            if (count < 4) {
               limitedDocs.push(doc.metadata.url);
-              count += 1;
+              count++;
             } else {
               break;
             }
@@ -540,39 +621,44 @@ const basicWebSearch = async (
       }
     } else {
       const uniqueArray = query;
-      const results = [];
-      const output = [];
+      let results = [] as any;
 
       if (uniqueArray?.length > 0) {
-        for (const data of uniqueArray) {
-          const url = data;
-          const pageContent = url.includes('//twitter')
-            ? { content: '' }
-            : url.includes('reddit')
-              ? await scrapeRedditPostAndComments(url)
-              : await fetchPageContent(url); // Fetch content for each URL
-          pageContent?.content === 'DataExist in DB'
-            ? results.push({ url })
-            : pageContent?.content
-              ? results.push({
-                  url,
-                  pageContent,
-                })
-              : '';
-        }
+        const pageSummaryData = await Promise.all(
+          uniqueArray.map(async (url) => {
+            const pageContent =
+              url.includes('//twitter') || url.includes('reddit')
+                ? { content: '' }
+                : await fetchPageContent(url); // Fetch content for each URL
+
+            if (pageContent?.content === 'DataExist in DB') {
+              return { url };
+            }
+
+            if (pageContent?.content) {
+              return { url, pageContent };
+            }
+
+            return null; // If content is empty, return null
+          }),
+        );
+
+        // Filter out null results from the final output
+        results = pageSummaryData.filter(Boolean);
       }
       if (results?.length > 0) {
-        for (const data of results) {
-          const summaryData = await getSummaryData(data);
-          if (summaryData) {
-            output.push(summaryData);
-          }
-        }
+        const summaryPromises = results.map((data) => getSummaryData(data));
+
+        // Wait for all promises to resolve in parallel
+        const summaryDataArray = await Promise.all(summaryPromises);
+
+        // Filter out any null or undefined values
+        const output = summaryDataArray.filter((summaryData) => summaryData);
+        return output;
       }
-      return output;
     }
   } catch (err) {
-    // await sendErrorSlackMessage(`*Error - websearch * \n Title : ${query}`);
+    await sendErrorSlackMessage(`*Error - websearch * \n Title : ${query}`);
     console.log(`Error in websearch: ${err}`);
     return [{ err }];
   }

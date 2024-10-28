@@ -19,6 +19,7 @@ interface Config {
     OPENAI: string;
     GROQ: string;
     ANTHROPIC: string;
+    ZENROWS_KEY: string;
   };
   API_ENDPOINTS: {
     SEARXNG: string;
@@ -26,7 +27,7 @@ interface Config {
   };
   SLACK: {
     SLACK_ERROR_CHANEEL_ID: string;
-    SLACK_BOT_KEY:string
+    SLACK_BOT_KEY: string;
   };
 }
 
@@ -58,9 +59,12 @@ export const getSearxngApiEndpoint = () => loadConfig().API_ENDPOINTS.SEARXNG;
 
 export const getOllamaApiEndpoint = () => loadConfig().API_ENDPOINTS.OLLAMA;
 
-export const getSlackErrorChannel=()=>loadConfig().SLACK.SLACK_ERROR_CHANEEL_ID
+export const getSlackErrorChannel = () =>
+  loadConfig().SLACK.SLACK_ERROR_CHANEEL_ID;
 
-export const getSlackBotKey=()=>loadConfig().SLACK.SLACK_BOT_KEY
+export const getSlackBotKey = () => loadConfig().SLACK.SLACK_BOT_KEY;
+
+export const getZenrowsKey = () => loadConfig().API_KEYS.ZENROWS_KEY;
 
 export const updateConfig = (config: RecursivePartial<Config>) => {
   const currentConfig = loadConfig();
