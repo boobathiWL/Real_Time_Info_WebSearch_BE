@@ -67,6 +67,8 @@ router.post('/', async (req, res) => {
     }
     const type = req.body.type.toString();
 
+    console.log(message,type)
+
     if (!message) {
       return res.status(400).json({
         message: `${type == 'url' ? 'Title' : 'URLS'} field is required`,
