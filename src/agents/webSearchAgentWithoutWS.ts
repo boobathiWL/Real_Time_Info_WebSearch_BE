@@ -211,7 +211,7 @@ Capital of france
 2. Hi, how are you?
 Rephrased question\`
 <question>
-not_needed
+Hi, how are you
 </question>
 \`
 
