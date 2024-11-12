@@ -60,6 +60,10 @@ router.post('/', async (req, res) => {
     }
 
     const message = req.body.title ? req.body.title.toString() : req.body.urls;
+    const source = req.body.source ?? '';
+    if (source !== 'section' && source !== 'title') {
+      return res.status(404).json({ message: 'Source field is required' });
+    }
     if (!req.body.type) {
       return res.status(400).json({
         message: 'Type field is required',
