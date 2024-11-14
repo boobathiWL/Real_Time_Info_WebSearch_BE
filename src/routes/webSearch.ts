@@ -78,7 +78,9 @@ router.post('/', async (req, res) => {
         message: `${type == 'url' ? 'Title' : 'URLS'} field is required`,
       });
     }
-
+    if (req.body.title) {
+      console.log({ title: req.body.title });
+    }
     let historyContent = [];
 
     if (type == 'url') {
