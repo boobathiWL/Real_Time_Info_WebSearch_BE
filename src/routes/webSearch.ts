@@ -116,6 +116,8 @@ router.post('/', async (req, res) => {
         embeddings,
         type,
       );
+      console.log(emitter);
+      
       return res.status(200).json({ data: emitter });
     }
 
