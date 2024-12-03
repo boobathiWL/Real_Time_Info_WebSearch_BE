@@ -607,7 +607,12 @@ const basicWebSearch = async (
         let count = 0;
         for (const doc of stream?.docs) {
           const url = doc.metadata.url;
-          if (!/\/\/twitter|youtube|reddit/.test(url)) {
+          if (
+            !/\/\/twitter|youtube|reddit/.test(url) &&
+            !url.endsWith('.pdf') &&
+            !url.endsWith('.html') &&
+            !url.endsWith('login')
+          ) {
             if (count < 4) {
               limitedDocs.push(doc.metadata.url);
               count++;
