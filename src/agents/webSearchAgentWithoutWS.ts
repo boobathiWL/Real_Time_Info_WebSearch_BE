@@ -304,68 +304,77 @@ const wordCount = async (content) => {
 
 function cleanHTMLContent(html) {
   const $ = cheerio.load(html);
-  // Remove unwanted elements
-  $(
-    'style, head, footer, aside, img, .ad, .advertisement, .promo, .sidebar, .comments, script, iframe, nav, button',
-  ).remove();
-  $(
-    '.testimonial, .like-share, .like_share, .related-blog, .related_blog, .related-news,.related_news, .share-buttons, .share_buttons, .share-section, .share_section, .related-articles, .related_articles, .related-posts, .related_posts, .newsletter-signup, .newsletter_signup, .social-media, .social_media',
-  ).remove();
-  const headings = [] as any;
   let promptContent = '';
-  $('h2, h3, h4').each((index, element) => {
-    const tag = element.name;
-    const headingText = $(element).text().trim();
-    let content = '';
-    // Collect content only until the next heading of the same or higher level
-    $(element)
-      .nextUntil('h2, h3, h4')
-      .each((i, sibling) => {
-        // Remove inline styles and convert <a> tags to plain text
-        $(sibling).find('[style]').removeAttr('style'); // Remove inline CSS
-        $(sibling)
-          .find('a')
-          .each((i, link) => {
-            $(link).replaceWith($(link).text()); // Convert <a> to plain text
-          });
-        // Append plain text content of the sibling
-        content += $(sibling).text().trim() + ' ';
-      });
+  try {
+    // Remove unwanted elements
+    $(
+      'style, head, footer, aside, img, .ad, .advertisement, .promo, .sidebar, .comments, script, iframe, nav, button',
+    ).remove();
+    $(
+      '.testimonial, .like-share, .like_share, .related-blog, .related_blog, .related-news,.related_news, .share-buttons, .share_buttons, .share-section, .share_section, .related-articles, .related_articles, .related-posts, .related_posts, .newsletter-signup, .newsletter_signup, .social-media, .social_media',
+    ).remove();
+    const headings = [] as any;
+    $('h2, h3, h4').each((index, element) => {
+      const tag = element.name;
+      const headingText = $(element).text().trim();
+      let content = '';
+      // Collect content only until the next heading of the same or higher level
+      $(element)
+        .nextUntil('h2, h3, h4')
+        .each((i, sibling) => {
+          // Remove inline styles and convert <a> tags to plain text
+          $(sibling).find('[style]').removeAttr('style'); // Remove inline CSS
+          $(sibling)
+            .find('a')
+            .each((i, link) => {
+              $(link).replaceWith($(link).text()); // Convert <a> to plain text
+            });
+          // Append plain text content of the sibling
+          content += $(sibling).text().trim() + ' ';
+        });
 
-    const heading = {
-      tag: tag,
-      text: headingText
-        .replace(/\.css-[a-zA-Z0-9_-]+[{][^}]+[}]/g, '') // Remove CSS class definitions
-        .replace(/\[h[23]\]/g, '') // Remove h2, h3 tags
-        .replace(/^\d+\. /gm, ''),
-      content: content
-        .replace(/\s{2,}/g, '  ')
-        .replace(/\n/g, '  ')
-        .trim(),
-      children: [],
+      const heading = {
+        tag: tag,
+        text: headingText
+          .replace(/\.css-[a-zA-Z0-9_-]+[{][^}]+[}]/g, '') // Remove CSS class definitions
+          .replace(/\[h[23]\]/g, '') // Remove h2, h3 tags
+          .replace(/^\d+\. /gm, ''),
+        content: content
+          .replace(/\s{2,}/g, '  ')
+          .replace(/\n/g, '  ')
+          .trim(),
+        children: [],
+      };
+      heading?.content.length > 100 ? headings.push(heading) : '';
+      if (heading?.content.length > 100) {
+        const headingData =
+          tag == 'h1'
+            ? `# ${heading.text}`
+            : tag == 'h2'
+              ? `## ${heading.text}`
+              : tag == 'h3'
+                ? `### ${heading.text}`
+                : tag == 'h4'
+                  ? `#### ${heading.text}`
+                  : tag == 'h5'
+                    ? `##### ${heading.text}`
+                    : `###### ${heading.text}`;
+
+        promptContent = promptContent + headingData + '\n' + heading.content;
+      }
+    });
+    return {
+      promptContent: promptContent
+        ? promptContent
+        : $('body').text().replace(/\s+/g, ' ').trim(),
     };
-    heading?.content.length > 100 ? headings.push(heading) : '';
-    if (heading?.content.length > 100) {
-      const headingData =
-        tag == 'h1'
-          ? `# ${heading.text}`
-          : tag == 'h2'
-            ? `## ${heading.text}`
-            : tag == 'h3'
-              ? `### ${heading.text}`
-              : tag == 'h4'
-                ? `#### ${heading.text}`
-                : tag == 'h5'
-                  ? `##### ${heading.text}`
-                  : `###### ${heading.text}`;
-
-      promptContent = promptContent + headingData + '\n' + heading.content;
-    }
-  });
-  return {
-    promptContent:
-      promptContent || $('body').text().replace(/\s+/g, ' ').trim(),
-  };
+  } catch (error) {
+    return {
+      promptContent: promptContent
+        ? promptContent
+        : $('body').text().replace(/\s+/g, ' ').trim(),
+    };
+  }
 }
 
 const zenrows = async (url) => {
